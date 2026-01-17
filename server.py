@@ -1,28 +1,21 @@
-from flask import Flask, request, jsonify
-import requests
-import os
-from datetime import datetime
-
-app = Flask(__name__)
-
-# Discord webhook (Render Environment Variable)
-DISCORD_WEBHOOK = os.environ.get("DISCORD_WEBHOOK")
-
-# Embed renkleri
-COLORS = {
-    "SUCCESS": 0x2ecc71,  # Yeşil
-    "INFO": 0x3498db,     # Mavi
-    "WARN": 0xf1c40f,     # Sarı
-    "ERROR": 0xe74c3c     # Kırmızı
-}
-
 @app.route("/log", methods=["POST"])
 def log():
-    data = request.json or {}
+    client_key = request.headers.get("X-API-KEY")
 
+    # 🔐 MUTLAK KONTROL
+    if not API_SECRET_KEY:
+        return jsonify({"error": "server_not_configured"}), 500
+
+    if not client_key:
+        return jsonify({"error": "missing_api_key"}), 403
+
+    if client_key != API_SECRET_KEY:
+        return jsonify({"error": "invalid_api_key"}), 403
+
+    data = request.json or {}
     level = data.get("level", "INFO")
     message = data.get("message", "")
-    user = data.get("user", "Bilinmeyen")
+    user = data.get("user", "UNKNOWN")
 
     embed = {
         "title": f"AutoSpace Log • {level}",
@@ -33,25 +26,13 @@ def log():
         }
     }
 
-    try:
-        requests.post(
-            DISCORD_WEBHOOK,
-            json={
-                "username": "AutoSpace",
-                "embeds": [embed]
-            },
-            timeout=5
-        )
-    except Exception as e:
-        return jsonify({"status": "error", "detail": str(e)}), 500
+    requests.post(
+        DISCORD_WEBHOOK,
+        json={
+            "username": "AutoSpace",
+            "embeds": [embed]
+        },
+        timeout=5
+    )
 
     return jsonify({"status": "ok"}), 200
-
-
-@app.route("/", methods=["GET"])
-def index():
-    return "AutoSpace Logger API is running.", 200
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
